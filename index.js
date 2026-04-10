@@ -3,7 +3,6 @@ const http = require('http');
 const express = require('express');
 const cors = require('cors');
 const { initDB } = require('./db');
-<<<<<<< HEAD
 const authRouter = require('./routes/auth');
 const usersRouter = require('./routes/users');
 const chatsRouter = require('./routes/chats');
