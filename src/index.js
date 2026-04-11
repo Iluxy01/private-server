@@ -3,9 +3,9 @@ const http = require('http');
 const express = require('express');
 const cors = require('cors');
 const { initDB } = require('./db');
-const authRouter = require('./auth');
-const usersRouter = require('./users');
-const chatsRouter = require('./chats');
+const authRouter = require('./routes/auth');
+const usersRouter = require('./routes/users');
+const chatsRouter = require('./routes/chats');
 const { setupWebSocket } = require('./websocket');
 
 const app = express();
