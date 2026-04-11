@@ -162,3 +162,52 @@ router.post('/:id/members', authMiddleware, async (req, res) => {
 });
 
 module.exports = router;
+
+// DELETE /api/chats/:id — покинуть/удалить чат
+router.delete('/:id', authMiddleware, async (req, res) => {
+  const chatId = req.params.id;
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+
+    // Убедимся что пользователь — участник
+    const member = await client.query(
+      'SELECT role FROM chat_members WHERE chat_id = $1 AND user_id = $2',
+      [chatId, req.userId]
+    );
+    if (member.rows.length === 0) {
+      await client.query('ROLLBACK');
+      return res.status(403).json({ error: 'Not a member' });
+    }
+
+    const role = member.rows[0].role;
+
+    // Для групп: только admin может удалить чат целиком;
+    // остальные просто покидают
+    const chatRes = await client.query('SELECT type FROM chats WHERE id = $1', [chatId]);
+    const chatType = chatRes.rows[0]?.type;
+
+    if (chatType === 'group' && role !== 'admin') {
+      // Просто покидаем группу
+      await client.query(
+        'DELETE FROM chat_members WHERE chat_id = $1 AND user_id = $2',
+        [chatId, req.userId]
+      );
+      await client.query('COMMIT');
+      return res.json({ success: true, action: 'left' });
+    }
+
+    // Удаляем chat_members и сам чат (сообщений на сервере нет)
+    await client.query('DELETE FROM chat_members WHERE chat_id = $1', [chatId]);
+    await client.query('DELETE FROM chats WHERE id = $1', [chatId]);
+
+    await client.query('COMMIT');
+    res.json({ success: true, action: 'deleted' });
+  } catch (err) {
+    await client.query('ROLLBACK');
+    console.error('Delete chat error:', err);
+    res.status(500).json({ error: 'Failed to delete chat' });
+  } finally {
+    client.release();
+  }
+});
