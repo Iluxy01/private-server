@@ -3,7 +3,6 @@ const { pool } = require('../db');
 const { authMiddleware } = require('../middleware/auth');
 
 // GET /api/users/search?q=username
-// FIX: добавлен public_key — клиент шифрует AES-ключ сразу при создании чата
 router.get('/search', authMiddleware, async (req, res) => {
   const q = (req.query.q || '').trim().toLowerCase();
 
@@ -13,7 +12,7 @@ router.get('/search', authMiddleware, async (req, res) => {
 
   try {
     const result = await pool.query(
-      `SELECT id, username, display_name, avatar_url, status, last_seen, public_key
+      `SELECT id, username, display_name, avatar_url, status, last_seen
        FROM users
        WHERE username ILIKE $1 AND id != $2
        LIMIT 20`,
@@ -55,29 +54,24 @@ router.get('/:id', authMiddleware, async (req, res) => {
 });
 
 // PUT /api/users/me — обновить профиль
-// FIX: добавлен public_key — нужен при первом входе на новом устройстве
 router.put('/me', authMiddleware, async (req, res) => {
-  const { display_name, status, avatar_url, public_key } = req.body;
+  const { display_name, status, avatar_url } = req.body;
 
   const updates = [];
   const values = [];
   let idx = 1;
 
-  if (display_name)          { updates.push(`display_name = $${idx++}`); values.push(display_name); }
-  if (status !== undefined)  { updates.push(`status = $${idx++}`);       values.push(status); }
+  if (display_name) { updates.push(`display_name = $${idx++}`); values.push(display_name); }
+  if (status !== undefined) { updates.push(`status = $${idx++}`); values.push(status); }
   if (avatar_url !== undefined) { updates.push(`avatar_url = $${idx++}`); values.push(avatar_url); }
-  if (public_key !== undefined && public_key !== null && public_key !== '') {
-    updates.push(`public_key = $${idx++}`);
-    values.push(public_key);
-  }
 
   if (updates.length === 0) return res.status(400).json({ error: 'Nothing to update' });
 
   values.push(req.userId);
   try {
     const result = await pool.query(
-      `UPDATE users SET ${updates.join(', ')} WHERE id = $${idx}
-       RETURNING id, username, display_name, public_key, avatar_url, status`,
+      `UPDATE users SET ${updates.join(', ')} WHERE id = $${idx} 
+       RETURNING id, username, display_name, avatar_url, status`,
       values
     );
     res.json({ user: result.rows[0] });
